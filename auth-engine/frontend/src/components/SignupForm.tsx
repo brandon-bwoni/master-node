@@ -48,35 +48,54 @@ interface SignupFormProps {
 
 export function SignupForm({ onSwitchToLogin }: SignupFormProps) {
   const [showPassword, setShowPassword] = useState(false);
-  const [showConfirm, setShowConfirm] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState<string | null>(null);
   const [formData, setFormData] = useState({
     name: "",
     email: "",
     password: "",
-    confirmPassword: "",
   });
-  const [passwordError, setPasswordError] = useState("");
 
   const handleChange =
     (field: keyof typeof formData) =>
     (e: React.ChangeEvent<HTMLInputElement>) => {
       setFormData((prev) => ({ ...prev, [field]: e.target.value }));
-      if (field === "confirmPassword" || field === "password") {
-        setPasswordError("");
-      }
     };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (formData.password !== formData.confirmPassword) {
-      setPasswordError("Passwords do not match.");
-      return;
-    }
     setIsLoading(true);
+    setError(null);
+    setSuccess(null);
     // TODO: wire up your registration logic here
-    console.log("Signup submitted:", formData);
-    setTimeout(() => setIsLoading(false), 1000);
+    try {
+      const request = await fetch("/api/register", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          username: formData.name,
+          email: formData.email,
+          password: formData.password,
+        }),
+      });
+      const data = await request.json();
+      if (!request.ok && request.status !== 201) {
+        throw new Error(data.message || "Registration failed");
+      }
+      console.log("Registration successful:", data);
+      setSuccess("Registration successful");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "An unknown error occurred";
+      setError(message);
+      console.error("Registration failed:", error);
+    } finally {
+      console.log("Signup submitted:", formData);
+      setIsLoading(false);
+    }
   };
 
   const handleSocialSignup = (provider: "google" | "facebook") => {
@@ -194,37 +213,17 @@ export function SignupForm({ onSwitchToLogin }: SignupFormProps) {
             </p>
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="signup-confirm">Confirm password</Label>
-            <div className="relative">
-              <Lock className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
-              <Input
-                id="signup-confirm"
-                type={showConfirm ? "text" : "password"}
-                placeholder="••••••••"
-                className={`pl-9 pr-9 ${passwordError ? "border-destructive focus-visible:ring-destructive" : ""}`}
-                value={formData.confirmPassword}
-                onChange={handleChange("confirmPassword")}
-                required
-                autoComplete="new-password"
-              />
-              <button
-                type="button"
-                onClick={() => setShowConfirm((v) => !v)}
-                className="absolute right-3 top-1/2 -translate-y-1/2 text-muted-foreground hover:text-foreground"
-                aria-label={showConfirm ? "Hide password" : "Show password"}
-              >
-                {showConfirm ? (
-                  <EyeOff className="size-4" />
-                ) : (
-                  <Eye className="size-4" />
-                )}
-              </button>
+          {/* Error fedback */}
+          {error && (
+            <div className="text-sm text-red-500 bg-red-50 border border-red-200 rounded-md p-3">
+              {error}
             </div>
-            {passwordError && (
-              <p className="text-xs text-destructive">{passwordError}</p>
-            )}
-          </div>
+          )}
+          {success && (
+            <div className="text-sm text-green-600 bg-green-50 border border-green-200 rounded-md p-3">
+              {success}
+            </div>
+          )}
 
           <Button type="submit" className="w-full" disabled={isLoading}>
             {isLoading ? "Creating account…" : "Create account"}

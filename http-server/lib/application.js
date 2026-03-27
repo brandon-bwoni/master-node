@@ -84,16 +84,19 @@ class Application {
   /**
    * Default error handler
    */
-  defaultErrorHandler(error, ctx) {
-    console.error("Error:", error);
+  async _defaultErrorHandler(error, ctx) {
+    console.error('Unhandled error:', error);
 
-    if (!ctx.res.headersSent) {
-      ctx.setStatus(error.status || 500);
-      ctx.json({
-        error: error.message || "Internal Server Error",
-        status: error.status || 500,
-      });
+    if (ctx.res.headersSent) {
+      ctx.res.destroy();
+      return;
     }
+
+    ctx.setStatus(error.status || 500);
+    ctx.json({
+      error:  error.message || 'Internal Server Error',
+      status: error.status  || 500,
+    });
   }
 
   /**

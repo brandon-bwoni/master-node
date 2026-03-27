@@ -12,6 +12,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
+import { Link, useNavigate } from "react-router-dom";
 
 // Google SVG icon
 const GoogleIcon = () => (
@@ -42,21 +43,48 @@ const FacebookIcon = () => (
   </svg>
 );
 
-interface LoginFormProps {
-  onSwitchToSignup?: () => void;
-}
+export function LoginForm() {
+  const navigate = useNavigate();
 
-export function LoginForm({ onSwitchToSignup }: LoginFormProps) {
   const [showPassword, setShowPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
   const [formData, setFormData] = useState({ email: "", password: "" });
+  const [success, setSuccess] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setIsLoading(true);
-    // TODO: wire up your login logic here
-    console.log("Login submitted:", formData);
-    setTimeout(() => setIsLoading(false), 1000);
+    try {
+      const { email, password } = formData;
+
+      if (!email || !password) {
+        throw new Error("Invalid credentials");
+      }
+
+      const cleanEmail = email.trim();
+      const cleanPassword = password.trim();
+
+      const request = await fetch("/api/auth/login", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        credentials: "include",
+        body: JSON.stringify({ email: cleanEmail, password: cleanPassword }),
+      });
+
+      if (!request.ok) throw new Error("Login failed");
+
+      const { user } = await request.json();
+      setSuccess("Successfully logged in");
+      return user;
+      navigate("/profile");
+    } catch (error) {
+      const message =
+        error instanceof Error ? error.message : "An unknown error occurred";
+      setError(message);
+      console.error("Login failed:", error);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleSocialLogin = (provider: "google" | "facebook") => {
@@ -165,6 +193,17 @@ export function LoginForm({ onSwitchToSignup }: LoginFormProps) {
             </div>
           </div>
 
+          {error && (
+            <div className="text-sm text-red-500 bg-red-50 border border-red-200 rounded-md p-3">
+              {error}
+            </div>
+          )}
+          {success && (
+            <div className="text-sm text-green-600 bg-green-50 border border-green-200 rounded-md p-3">
+              {success}
+            </div>
+          )}
+
           <Button type="submit" className="w-full" disabled={isLoading}>
             {isLoading ? "Signing in…" : "Sign in"}
           </Button>
@@ -173,13 +212,14 @@ export function LoginForm({ onSwitchToSignup }: LoginFormProps) {
 
       <CardFooter className="justify-center text-sm text-muted-foreground">
         Don't have an account?&nbsp;
-        <button
-          type="button"
-          onClick={onSwitchToSignup}
-          className="font-medium text-primary underline-offset-4 hover:underline"
-        >
-          Sign up
-        </button>
+        <Link to="/register">
+          <button
+            type="button"
+            className="font-medium text-primary underline-offset-4 hover:underline"
+          >
+            Sign up
+          </button>
+        </Link>
       </CardFooter>
     </Card>
   );

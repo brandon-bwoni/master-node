@@ -1,18 +1,22 @@
-import { useState } from "react";
-import { LoginForm } from "@/components/LoginForm";
-import { SignupForm } from "@/components/SignupForm";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
+import HomePage from "./components/HomePage";
+import { LoginForm } from "./components/LoginForm";
+import { SignupForm } from "./components/SignupForm";
+import Profile from "./components/Profile";
+import { AuthProvider } from "./AuthContext";
 
 function App() {
-  const [view, setView] = useState<"login" | "signup">("login");
-
   return (
-    <div className="min-h-screen bg-background flex items-center justify-center p-4">
-      {view === "login" ? (
-        <LoginForm onSwitchToSignup={() => setView("signup")} />
-      ) : (
-        <SignupForm onSwitchToLogin={() => setView("login")} />
-      )}
-    </div>
+    <AuthProvider>
+      <BrowserRouter>
+        <Routes>
+          <Route path="/" element={<HomePage />} />
+          <Route path="/login" element={<LoginForm />} />
+          <Route path="/register" element={<SignupForm />} />
+          <Route path="profile" element={<Profile />} />
+        </Routes>
+      </BrowserRouter>
+    </AuthProvider>
   );
 }
 

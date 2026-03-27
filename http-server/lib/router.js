@@ -70,7 +70,7 @@ class Router {
    * Returns { handler, params } or null
    */
   find(method, path) {
-    const tree = this.trees.get(method);
+    const tree = this.trees.get(method.toUpperCase());
     if (!tree) return null;
 
     // Remove trailing slash
@@ -79,24 +79,25 @@ class Router {
     }
 
     const segments = path.split("/").filter((s) => s.length > 0);
-    return this._search(tree, segments, {});
+
+    const params = {}
+    const handler = this._search(root, segments, 0, params)
+    return handler ? {handler, params} : null
   }
 
   /**
    * Search radix tree for matching route
    */
-  _search(node, segments, params) {
-    if (segments.length === 0) {
-      if (node.handler) {
-        return { handler: node.handler, params };
-      }
-      if (node.wildcardHandler) {
-        return { handler: node.wildcardHandler, params };
-      }
-      return null;
+  _search(node, segments, idx, params) {
+    if(idx === segments.length){
+      if (node.handler) return node.handler
+      if(node.wildcardHandler) return node.wildcardHandler
+      return null
     }
 
-    const [segment, ...remaining] = segments;
+    const segment = segments[idx]
+
+    
 
     // Try static match first (highest priority)
     if (node.children.has(segment)) {
