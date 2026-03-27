@@ -13,3 +13,11 @@ export class TokenError extends Error {
     this.status = status;
   }
 }
+
+export class SessionError extends Error {
+  constructor(message = "Session invalid or expired", status = 401) {
+    super(message);
+    this.name = "SessionError";
+    this.status = status;
+  }
+}

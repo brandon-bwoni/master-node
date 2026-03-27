@@ -85,14 +85,14 @@ class RouterTree {
       }
       return null;
     }
+
     const [segment, ...remaining] = segments;
 
-    //   Try static match first
+    // Try static match first
     if (node.children.has(segment)) {
       const result = this._search(
         node.children.get(segment),
-        segments,
-        idx + 1,
+        remaining,
         params,
       );
       if (result) return result;
@@ -104,18 +104,18 @@ class RouterTree {
       const prev = params[paramName];
       params[paramName] = segment;
 
-      const result = this._search(node.paramChild, segments, idx + 1, params);
+      const result = this._search(node.paramChild, remaining, params);
       if (result) return result;
 
-      //  Rollback
+      // Rollback
       if (prev === undefined) delete params[paramName];
       else params[paramName] = prev;
     }
 
     // Try wildcard match
     if (node.wildcardHandler) {
-      params["*"] = segments.slice(idx).join("/");
-      return node.wildcardHandler;
+      params["*"] = segments.join("/");
+      return { handler: node.wildcardHandler, params };
     }
 
     return null;

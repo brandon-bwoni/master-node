@@ -6,8 +6,13 @@ const redis = new Redis({
   port: parseInt(process.env.REDIS_PORT, 10) || 6379,
   password: process.env.REDIS_PASSWORD || undefined,
   maxRetriesPerRequest: 3,
-  retryStrategy: (times) => Math.min(times * 100, 3000),
+  retryStrategy: (times) => Math.min(times * 150, 5000),
+  lazyConnect: true,
+  enableOfflineQueue: false,
+  keepAlive: 1,
 });
+
+await redis.connect();
 
 redis.on("error", (err) => console.error("Redis error:", err));
 
@@ -18,26 +23,85 @@ export function generateSessionId() {
   return crypto.randomBytes(32).toString("base64url");
 }
 
-export async function createSession(data) {
-  const sid = generateSessionId();
-  const payload = JSON.stringify({ ...data, createdAt: Date.now() });
+export function hashToken(rawToken) {
+  return crypto.createHash("sha256").update(rawToken).digest("hex");
+}
 
-  await redis.set(`${SESSION_PREFIX}${sid}`, payload, "EX", SESSION_TTL);
+function sessionKey(sid) {
+  return `${SESSION_PREFIX}${sid}`;
+}
+
+function userIndexKey(userId) {
+  return `user-sessions:${userId}`;
+}
+
+export async function createSession({
+  userId,
+  rawRefreshToken,
+  deviceInfo,
+  ip,
+}) {
+  const sid = generateSessionId();
+  const expiresAt = Date.now() + SESSION_TTL * 1000;
+
+  const pipeline = redis.pipeline();
+
+  pipeline.hset(sessionKey(sid), {
+    userId: userId,
+    refreshTokenHash: hashToken(rawRefreshToken),
+    deviceInfo: JSON.stringify(deviceInfo),
+    ip,
+    expiresAt,
+  });
+  pipeline.expire(sessionKey(sid), SESSION_TTL);
+  pipeline.sadd(userIndexKey(userId), sid);
+  pipeline.expire(userIndexKey(userId), SESSION_TTL);
+
+  await pipeline.exec();
   return sid;
 }
 
 export async function getSession(sid) {
   if (!sid) return null;
 
-  const raw = await redis.get(`${SESSION_PREFIX}${sid}`);
-  if (!raw) return null;
+  const raw = await hmget(key, "userId", "refreshTokenHash");
 
-  try {
-    return JSON.parse(raw);
-  } catch {
-    await deleteSession(sid);
-    return null;
-  }
+  if (!raw || Object.keys(raw).length === 0) return null;
+
+  return {
+    userId: raw.userId,
+    refreshTokenHash: raw.refreshTokenHash,
+    deviceInfo: JSON.parse(raw.deviceInfo),
+    ip: raw.ip,
+    expiresAt: parseInt(raw.expiresAt),
+  };
+}
+
+// Function to validate refresh tokens
+export async function validateRefreshToken(sid, rawRefreshToken) {
+  const session = await getSession(sid);
+  if (!session) return { valid: false, session: null };
+
+  const incoming = Buffer.from(hashToken(rawRefreshToken), "hex");
+  const stored = Buffer.from(session.refreshTokenHash, "hex");
+
+  const valid =
+    storedlength === incoming.length &&
+    crypto.timingSafeEqual(stored, incoming);
+
+  return { valid, session: valid ? session : null };
+}
+
+// Function to rotate refresh token
+export async function rotateRefreshToken(sid, newRawRefreshToken) {
+  const pipeline = redis.pipeline();
+  pipeline.hset(
+    sessionKey(sid),
+    "refreshTokenHash",
+    hashToken(newRawRefreshToken),
+  );
+  pipeline.expire(sessionKey(sid), SESSION_TTL);
+  await pipeline.exec();
 }
 
 export async function touchSession(sid) {
@@ -45,17 +109,17 @@ export async function touchSession(sid) {
 }
 
 export async function deleteSession(sid) {
-  await redis.del(`${SESSION_PREFIX}${sid}`);
+  await redis.del(sessionKey(sid));
 }
 
 export async function deleteAllUserSessions(userId) {
-  const indexKey = `user-sessions:${userId}`;
+  const indexKey = userIndexKey(userId);
   const sids = await redis.smembers(indexKey);
 
   if (sids.length === 0) return;
 
   const pipeline = redis.pipeline();
-  for (const sid of sids) pipeline.del(`${SESSION_PREFIX}${sid}`);
+  for (const sid of sids) pipeline.del(sessionKey(sid));
   pipeline.del(indexKey);
   await pipeline.exec();
 }

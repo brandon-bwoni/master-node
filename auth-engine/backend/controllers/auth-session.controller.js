@@ -4,7 +4,6 @@ import {
   createSession,
   getSession,
   deleteSession,
-  touchSession,
   indexUserSession,
   deleteAllUserSessions,
 } from "../store/session-store.js";
