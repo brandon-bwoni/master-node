@@ -27,7 +27,9 @@ export class JobId {
       throw new InvalidJobIdError("cannot be empty or whitespace-only");
     }
     if (value.length > MAX_JOB_ID_LENGTH) {
-      throw new InvalidJobIdError(`exceeds maximum length of ${MAX_JOB_ID_LENGTH} (got ${value.length})`);
+      throw new InvalidJobIdError(
+        `exceeds maximum length of ${MAX_JOB_ID_LENGTH} (got ${value.length})`,
+      );
     }
     this.value = value;
     Object.freeze(this);
